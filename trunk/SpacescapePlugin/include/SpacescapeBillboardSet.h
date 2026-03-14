@@ -34,12 +34,13 @@
 
 #include "OgreMovableObject.h"
 #include "OgreRenderable.h"
-#include "OgreRadixSort.h"
 //#include "OgreCommon.h"
 #include "OgreResourceGroupManager.h"
 //#include "OgreHeaderPrefix.h"
 #include "OgreBillboardSet.h"
 #include "SpacescapeBillboard.h"
+#include <list>
+#include <vector>
 
 
 namespace Ogre {
@@ -121,9 +122,9 @@ namespace Ogre {
         bool mAllDefaultRotation;
         bool mWorldSpace;
         
-        typedef list<SpacescapeBillboard*>::type SpacescapeActiveBillboardList;
-        typedef list<SpacescapeBillboard*>::type SpacescapeFreeBillboardList;
-        typedef vector<SpacescapeBillboard*>::type SpacescapeBillboardPool;
+        typedef std::list<SpacescapeBillboard*> SpacescapeActiveBillboardList;
+        typedef std::list<SpacescapeBillboard*> SpacescapeFreeBillboardList;
+        typedef std::vector<SpacescapeBillboard*> SpacescapeBillboardPool;
         
         /** Active billboard list.
          @remarks
@@ -179,7 +180,7 @@ namespace Ogre {
         /// Flag indicating whether each billboard should be culled separately (default: false)
         bool mCullIndividual;
         
-        typedef vector< Ogre::FloatRect >::type TextureCoordSets;
+        typedef std::vector<Ogre::FloatRect> TextureCoordSets;
         TextureCoordSets mTextureCoords;
         
         /// The type of billboard to render
@@ -253,8 +254,6 @@ namespace Ogre {
             SortByDistanceFunctor(const Vector3& pos);
             float operator()(SpacescapeBillboard* bill) const;
         };
-        
-        static RadixSort<SpacescapeActiveBillboardList, SpacescapeBillboard*, float> mRadixSorter;
         
         /// Use point rendering?
         bool mPointRendering;

@@ -32,7 +32,7 @@ THE SOFTWARE.
 
 //#define Q_WS_MAC
 //#define Q_WS_MAC32
-#define Q_WS_WIN
+#include <QPaintEngine>
 #include <QWidget>
 #if defined(Q_WS_WIN)
 // disable some warning
@@ -91,6 +91,8 @@ protected:
     @param e The event data
     */
     void paintEvent(QPaintEvent *e);
+
+    QPaintEngine *paintEngine() const;
 
     /** Handle a resize event (pass it along to the render window)
     @param e The event data

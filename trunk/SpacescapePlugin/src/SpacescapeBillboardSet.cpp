@@ -46,9 +46,6 @@
 #define EXR_SUPPORT
 
 namespace Ogre {
-    // Init statics
-    RadixSort<SpacescapeBillboardSet::SpacescapeActiveBillboardList, SpacescapeBillboard*, float> SpacescapeBillboardSet::mRadixSorter;
-    
     //-----------------------------------------------------------------------
     SpacescapeBillboardSet::SpacescapeBillboardSet() :
     mBoundingRadius(0.0f),
@@ -331,10 +328,20 @@ namespace Ogre {
         switch (_getSortMode())
         {
             case SM_DIRECTION:
-                mRadixSorter.sort(mActiveBillboards, SortByDirectionFunctor(-mCamDir));
+                mActiveBillboards.sort(
+                    [this](SpacescapeBillboard* lhs, SpacescapeBillboard* rhs)
+                    {
+                        return SortByDirectionFunctor(-mCamDir)(lhs) <
+                               SortByDirectionFunctor(-mCamDir)(rhs);
+                    });
                 break;
             case SM_DISTANCE:
-                mRadixSorter.sort(mActiveBillboards, SortByDistanceFunctor(mCamPos));
+                mActiveBillboards.sort(
+                    [this](SpacescapeBillboard* lhs, SpacescapeBillboard* rhs)
+                    {
+                        return SortByDistanceFunctor(mCamPos)(lhs) <
+                               SortByDistanceFunctor(mCamPos)(rhs);
+                    });
                 break;
         }
     }
@@ -683,7 +690,7 @@ namespace Ogre {
         {
             op.operationType = RenderOperation::OT_POINT_LIST;
             op.useIndexes = false;
-            op.useGlobalInstancingVertexBufferIsAvailable = false;
+            op.useGlobalInstancing = false;
             op.indexData = 0;
             op.vertexData->vertexCount = mNumVisibleBillboards;
         }
@@ -1003,7 +1010,7 @@ namespace Ogre {
         
         getWorldTransforms(&xworld);
         
-        sph.setCenter(xworld.transformAffine(bill.mPosition));
+        sph.setCenter(xworld * bill.mPosition);
         
         if (bill.mOwnDimensions)
         {

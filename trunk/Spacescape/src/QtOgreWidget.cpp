@@ -29,12 +29,13 @@ THE SOFTWARE.
 */
 #include "QtOgreWidget.h"
 #include <QApplication>
+#include <QDir>
 #if defined(Q_WS_MAC)
 //#import <Cocoa/Cocoa.h>
 //#include <OgreOSXContext.h>
 #include <AGL/agl.h>
 #elif !defined(Q_WS_WIN)
-#include <QX11Info>
+#include <QtX11Extras/QX11Info>
 #endif
 
 Ogre::Root * QtOgreWidget::mOgreRoot = NULL;
@@ -46,6 +47,9 @@ QtOgreWidget::QtOgreWidget(QWidget* parent, Qt::WindowFlags f) : QWidget(parent)
 //QtOgreWidget::QtOgreWidget(QWidget *parent) : QWidget(parent) {
 	setAttribute(Qt::WA_PaintOnScreen);
 	setAttribute(Qt::WA_NoBackground);
+	setAttribute(Qt::WA_NativeWindow);
+	setFocusPolicy(Qt::StrongFocus);
+	setMouseTracking(true);
 	
 	mRenderWindow = NULL;
 	mOgreRoot = NULL;
@@ -61,6 +65,12 @@ QtOgreWidget::~QtOgreWidget(void) {
 void QtOgreWidget::configure(void) {
 	if (mOgreRoot)
 		return;
+
+	QString appDir = QApplication::applicationDirPath();
+	QString pluginsPath = QDir(appDir).filePath("plugins.cfg");
+	QString appConfigPath = QDir(appDir).filePath("app.cfg");
+	QString appLogPath = QDir(appDir).filePath("app.log");
+	QDir::setCurrent(appDir);
 	
 #ifdef WIN32
 	// set the current working directory to the path where the
@@ -77,19 +87,22 @@ void QtOgreWidget::configure(void) {
 #endif
 
 #if defined(Q_WS_X11)
-        mOgreRoot = new Ogre::Root("plugins.cfg", "app.cfg", "app.log");
+        mOgreRoot = new Ogre::Root("", appConfigPath.toStdString(), appLogPath.toStdString());
+        mOgreRoot->loadPlugin("/usr/lib/OGRE/Codec_STBI");
+        mOgreRoot->loadPlugin("/usr/lib/OGRE/RenderSystem_GL");
+        mOgreRoot->loadPlugin(QDir(appDir).filePath("Plugin_Spacescape.so").toStdString());
 #else
     #ifdef _DEBUG
     mOgreRoot = new Ogre::Root(
         QString("../plugins_d.cfg").toStdString(), 
-        QString("../app.cfg").toStdString(), 
-        QString("../app.log").toStdString()
+        appConfigPath.toStdString(), 
+        appLogPath.toStdString()
     );
     #else
     mOgreRoot = new Ogre::Root(
-        QString("../plugins.cfg").toStdString(), 
-        QString("../app.cfg").toStdString(), 
-        QString("../app.log").toStdString()
+        pluginsPath.toStdString(), 
+        appConfigPath.toStdString(), 
+        appLogPath.toStdString()
     );
     #endif
 #endif
@@ -127,15 +140,8 @@ void QtOgreWidget::createRenderWindow(void) {
 #if defined(Q_WS_MAC) || defined(Q_WS_WIN)
 	params["externalWindowHandle"] = Ogre::StringConverter::toString((size_t)winId());
 #else
-    QX11Info info = x11Info();
-	Ogre::String winHandle;
-	winHandle  = Ogre::StringConverter::toString((unsigned long)(info.display()));
-	winHandle += ":";
-	winHandle += Ogre::StringConverter::toString((unsigned int)(info.screen()));
-	winHandle += ":";
-	winHandle += Ogre::StringConverter::toString((unsigned long)(this->parentWidget()->winId()));
-	params["parentWindowHandle"] = winHandle;
-
+    createWinId();
+	params["externalWindowHandle"] = Ogre::StringConverter::toString((size_t)winId());
 #endif
 	mRenderWindow = mOgreRoot->createRenderWindow("View" + Ogre::StringConverter::toString((unsigned long) this),
 			width(), height(), false, &params);
@@ -149,13 +155,10 @@ void QtOgreWidget::createRenderWindow(void) {
 	resizeRenderWindow();
 #endif
 	
-	// take over ogre window
-#if !defined(Q_WS_MAC) && !defined(Q_WS_WIN)
-	WId ogreWinId = 0x0;
-	mRenderWindow->getCustomAttribute("WINDOW", &ogreWinId);
-	assert(ogreWinId);
-	create(ogreWinId);
-#endif
+}
+
+QPaintEngine *QtOgreWidget::paintEngine() const {
+	return 0;
 }
 
 /** Give the minimum size for this widget

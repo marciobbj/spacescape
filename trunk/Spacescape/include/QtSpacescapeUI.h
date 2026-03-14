@@ -416,11 +416,7 @@ public:
         
         menuBar->setNativeMenuBar(true);
 
-        mProgressDialog = new QProgressDialog(MainWindow);
-        mProgressDialog->setMinimum(0);
-        mProgressDialog->setMaximum(100);
-        mProgressDialog->setWindowModality(Qt::WindowModal);
-        mProgressDialog->setCancelButton(0);
+        mProgressDialog = 0;
 
         retranslateUi(MainWindow);
         QObject::connect(actionE_xit, SIGNAL(triggered()), MainWindow, SLOT(close()));

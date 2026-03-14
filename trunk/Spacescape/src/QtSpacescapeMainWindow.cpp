@@ -900,15 +900,30 @@ void QtSpacescapeMainWindow::onNewFile()
 */
 void QtSpacescapeMainWindow::onNewLayerClicked()
 {
+    if(!ui->ogreWindow->pluginReady()) {
+        ui->statusBar->showMessage("Render window is not ready yet", 3000);
+        return;
+    }
+
     ui->statusBar->showMessage("Creating new layer...");
 
     Ogre::NameValuePairList params;
-    ui->ogreWindow->addLayer(0,params);
+    int layerId = ui->ogreWindow->addLayer(0,params);
+    if(layerId < 0) {
+        ui->statusBar->showMessage("Failed to create new layer", 3000);
+        return;
+    }
 
     ui->statusBar->showMessage("Creating new layer properties list...");
 
+    std::vector<Ogre::SpacescapeLayer *> layers = ui->ogreWindow->getLayers();
+    if(layerId >= (int)layers.size() || !layers[layerId]) {
+        ui->statusBar->showMessage("Layer was created incorrectly", 3000);
+        return;
+    }
+
     // insert the new layer
-    insertLayerProperties(ui->ogreWindow->getLayers().back());
+    insertLayerProperties(layers[layerId]);
 
     ui->statusBar->showMessage("New layer created",3000);
 }
@@ -938,10 +953,6 @@ void QtSpacescapeMainWindow::onOpen()
 		settings.setValue("LastSaveDir",mLastSaveDir);
 
         ui->statusBar->showMessage("Opening " + filename + " ...");
-
-        // open the progress dialog
-        ui->mProgressDialog->setValue(0);
-        ui->mProgressDialog->show();
 
         if(ui->ogreWindow->open(filename)) {
             mFilename = filename;
@@ -1085,8 +1096,7 @@ void QtSpacescapeMainWindow::refreshProperties()
 */
 void QtSpacescapeMainWindow::updateProgressBar(unsigned int percentComplete, const Ogre::String& msg)
 {
-    ui->mProgressDialog->setValue(percentComplete);
-    ui->mProgressDialog->setLabelText(QString(msg.c_str()));
+    ui->statusBar->showMessage(QString(msg.c_str()));
     qApp->processEvents();
 }
 

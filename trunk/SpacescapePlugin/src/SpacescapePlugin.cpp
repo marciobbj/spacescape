@@ -43,11 +43,32 @@ THE SOFTWARE.
 //#include "half.h"
 #include "OgreLogManager.h"
 #include "OgreCamera.h"
-#include "OgreViewPort.h"
+#include "OgreViewport.h"
 #include "OgreTechnique.h"
 
 namespace Ogre 
 {
+	static SceneManager* getAnySceneManager()
+	{
+		const SceneManagerInstanceMap& sceneManagers = Root::getSingleton().getSceneManagers();
+		return sceneManagers.empty() ? 0 : sceneManagers.begin()->second;
+	}
+
+	static SceneNode* getChildSceneNode(SceneNode* parent, const String& name)
+	{
+		if (!parent) {
+			return 0;
+		}
+
+		const Node::ChildNodeMap& children = parent->getChildren();
+		for (Node::ChildNodeMap::const_iterator it = children.begin(); it != children.end(); ++it) {
+			if ((*it)->getName() == name) {
+				return static_cast<SceneNode*>(*it);
+			}
+		}
+		return 0;
+	}
+
 	const String sPluginName = "Spacescape";
 
     SpacescapePlugin::SpacescapePlugin() :
@@ -73,12 +94,20 @@ namespace Ogre
         // create the scene node if it doesn't already exist
         if(!mSceneNode) {
             // get the default scene manager
-            if(!Ogre::Root::getSingleton().getSceneManagerIterator().hasMoreElements()) {
+            SceneManager* sceneMgr = getAnySceneManager();
+            if(!sceneMgr) {
                 Ogre::LogManager::getSingleton().getDefaultLog()->stream() << 
                     "No scene manager found in SpacescapePlugin::addLayer().  You can't add a layer before creating a scene manager.";
             }
-            SceneManager* sceneMgr = Root::getSingleton().getSceneManagerIterator().peekNextValue();
-            mSceneNode = sceneMgr->getRootSceneNode()->createChildSceneNode("SpacescapeNode");
+            else {
+                mSceneNode = sceneMgr->getRootSceneNode()->createChildSceneNode("SpacescapeNode");
+            }
+        }
+
+        if(!mSceneNode) {
+            Ogre::LogManager::getSingleton().getDefaultLog()->stream() <<
+                "SpacescapePlugin::addLayer() aborted because no scene node is available.";
+            return -1;
         }
 
         if(type == SLT_BILLBOARDS) {
@@ -481,13 +510,12 @@ namespace Ogre
     bool SpacescapePlugin::clear()
     {
         // check if the scene manager still exists
-        if(!Ogre::Root::getSingleton().getSceneManagerIterator().hasMoreElements()) {
+        SceneManager* sceneMgr = getAnySceneManager();
+        if(!sceneMgr) {
             Ogre::LogManager::getSingleton().getDefaultLog()->stream() << 
                 "SpacescapePlugin::clear() called with no scenemanagers.";
         }
         else {
-            SceneManager* sceneMgr = Root::getSingleton().getSceneManagerIterator().peekNextValue();
-
             // it is possible that this function is called after the plugin has been shutdown etc.
             // so the scene node pointer may be invalid
             if(!sceneMgr->hasSceneNode("SpacescapeNode")) {
@@ -802,25 +830,23 @@ namespace Ogre
         }
 
         SceneManager* mgr = mSceneNode->getCreator();
-        
-        // get the rtt camera
-        Camera* rttCam;
-        if(!mgr->hasCamera("RTTCam")) {
-            rttCam = mgr->createCamera("RttCam");
-
-            // initialize the camera
-            rttCam->lookAt(Vector3::UNIT_Z);
-            rttCam->setAspectRatio(1.0);
-            rttCam->setFOVy(Radian(Degree(90.0))); // 90 degree fov
-            rttCam->setNearClipDistance(0.1f);
-            rttCam->setFarClipDistance(1000);
+        const String cameraName = "RTTCam";
+        const String cameraNodeName = "SpacescapeRTTCamNode";
+        if (mgr->hasCamera(cameraName)) {
+            mgr->destroyCamera(cameraName);
         }
-        else {
-            rttCam = mgr->getCamera("RttCam");
+        if (getChildSceneNode(mSceneNode, cameraNodeName)) {
+            mSceneNode->removeAndDestroyChild(cameraNodeName);
         }
 
-         // attach rtt cam to scene
-        mSceneNode->attachObject(rttCam);
+        Camera* rttCam = mgr->createCamera(cameraName);
+        rttCam->setAspectRatio(1.0);
+        rttCam->setFOVy(Radian(Degree(90.0)));
+        rttCam->setNearClipDistance(0.1f);
+        rttCam->setFarClipDistance(1000);
+
+        SceneNode* rttCamNode = mSceneNode->createChildSceneNode(cameraNodeName);
+        rttCamNode->attachObject(rttCam);
  
         int numMips = (numMipMaps == -1) ? SpacescapePlugin::_log2((uint)texture->getWidth()) : numMipMaps;
         
@@ -883,7 +909,7 @@ namespace Ogre
 
             Quaternion q;
             q.FromAxes(right,up,forward);
-			rttCam->setOrientation(q * alterOrientation);
+			rttCamNode->setOrientation(q * alterOrientation);
 
             for(int j = 0; j <= numMips; ++j) {
                 // get render target for mipmap
@@ -907,7 +933,8 @@ namespace Ogre
         }
         texture->load();
 
-        mSceneNode->detachObject(rttCam);
+        rttCamNode->detachObject(rttCam);
+        mSceneNode->removeAndDestroyChild(rttCamNode);
         mgr->destroyCamera(rttCam);
 
         return true;
@@ -964,7 +991,10 @@ namespace Ogre
     void SpacescapePlugin::setDebugBoxVisible(bool visible)
     {
 		if (!mSceneNode) {
-			SceneManager* sceneMgr = Root::getSingleton().getSceneManagerIterator().peekNextValue();
+			SceneManager* sceneMgr = getAnySceneManager();
+			if (!sceneMgr) {
+				return;
+			}
 			mSceneNode = sceneMgr->getRootSceneNode()->createChildSceneNode("SpacescapeNode");
 		}
 
@@ -976,9 +1006,12 @@ namespace Ogre
         SceneNode* n = NULL;
         String nodeName = "SpacescapeDebugBoxNode";
         try {
-            n = (SceneNode*)mSceneNode->getChild(nodeName);
+            n = getChildSceneNode(mSceneNode, nodeName);
         }
         catch(Ogre::Exception e) {
+            n = mSceneNode->createChildSceneNode(nodeName);
+        }
+        if(!n) {
             n = mSceneNode->createChildSceneNode(nodeName);
         }
         
@@ -998,7 +1031,10 @@ namespace Ogre
             NameValuePairList params = mLayers[i]->getParams();
             
             // detach old object from the layer scene node
-            SceneNode* n =(SceneNode*)mSceneNode->getChild("SpacescapeLayer" + StringConverter::toString(i));
+            SceneNode* n = getChildSceneNode(mSceneNode, "SpacescapeLayer" + StringConverter::toString(i));
+            if(!n) {
+                continue;
+            }
             n->detachAllObjects();
             
             // delete the layer
@@ -1039,7 +1075,7 @@ namespace Ogre
 
         String layerName = "SpacescapeLayer" + StringConverter::toString(layerId);
 
-        SceneNode* n = (SceneNode*)mSceneNode->getChild(layerName);
+        SceneNode* n = getChildSceneNode(mSceneNode, layerName);
         if(n) {
             n->setVisible(visible);
         }
@@ -1061,7 +1097,7 @@ namespace Ogre
 
         String layerName = "SpacescapeLayer" + StringConverter::toString(layerId);
 
-        SceneNode* n = (SceneNode*)mSceneNode->getChild(layerName);
+        SceneNode* n = getChildSceneNode(mSceneNode, layerName);
         if(n) {
             n->flipVisibility();
         }
@@ -1096,7 +1132,10 @@ namespace Ogre
             NameValuePairList oldParams = mLayers[layerId]->getParams();
 
             // detach old object from the layer scene node
-            SceneNode* n =(SceneNode*)mSceneNode->getChild("SpacescapeLayer" + StringConverter::toString(layerId));
+            SceneNode* n = getChildSceneNode(mSceneNode, "SpacescapeLayer" + StringConverter::toString(layerId));
+            if(!n) {
+                return false;
+            }
             n->detachAllObjects();
 
             // delete the layer

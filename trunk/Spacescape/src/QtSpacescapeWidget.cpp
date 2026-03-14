@@ -28,6 +28,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 #include "QtSpacescapeWidget.h"
+#include <QDebug>
+#include <QCoreApplication>
+#include <QDir>
 #include <QMouseEvent>
 //#include "OGRE/Ogre.h"
 #include <Ogre.h>
@@ -64,7 +67,13 @@ int QtSpacescapeWidget::addLayer(int type, const Ogre::NameValuePairList& params
 {
     Ogre::SpacescapePlugin* plugin = getPlugin();
     if(plugin) {
-        return plugin->addLayer(type, params);
+        try {
+            return plugin->addLayer(type, params);
+        } catch (const Ogre::Exception& e) {
+            qWarning() << "Failed to add Spacescape layer:" << e.getFullDescription().c_str();
+        } catch (const std::exception& e) {
+            qWarning() << "Failed to add Spacescape layer:" << e.what();
+        }
     }
 
     return -1;
@@ -385,13 +394,16 @@ void QtSpacescapeWidget::setLayerVisible(unsigned int layerID, bool visible)
 void QtSpacescapeWidget::setupResources(void) {
 #ifdef Q_WS_MAC
     Ogre::String resourcePath = Ogre::macBundlePath() + "/Contents/Resources/";
+    QString resourceConfigDir = QString::fromStdString(resourcePath);
+    QString resourceBaseDir = resourceConfigDir;
 #else
-    Ogre::String resourcePath = "../";
+    QString resourceConfigDir = QDir(QCoreApplication::applicationDirPath()).filePath("../");
+    QString resourceBaseDir = QCoreApplication::applicationDirPath();
 #endif
     
 	// Load resource paths from config file
 	Ogre::ConfigFile config;
-        config.load(resourcePath + "resources.cfg");
+	config.load(QDir(resourceConfigDir).filePath("resources.cfg").toStdString());
 	
 	// Go through all sections & settings in the file
 	Ogre::ConfigFile::SectionIterator it = config.getSectionIterator();
@@ -410,8 +422,10 @@ void QtSpacescapeWidget::setupResources(void) {
             // In order to make things portable on OS X we need to provide
             // the loading with it's own bundle path location
             if (!Ogre::StringUtil::startsWith(archName, "/", false)) // only adjust relative dirs
-                archName = Ogre::String(resourcePath + archName);
+                archName = Ogre::String(resourceBaseDir.toStdString() + "/" + archName);
 #endif
+			if (!Ogre::StringUtil::startsWith(archName, "/", false))
+				archName = QDir(resourceBaseDir).filePath(QString::fromStdString(archName)).toStdString();
 			Ogre::ResourceGroupManager::getSingleton().addResourceLocation(archName, typeName, secName);
 		}
     }
@@ -420,11 +434,10 @@ void QtSpacescapeWidget::setupResources(void) {
 /** Setup the scene
 */
 void QtSpacescapeWidget::setupScene(void) {
-	mSceneMgr = Ogre::Root::getSingleton().createSceneManager(Ogre::ST_GENERIC);
+	mSceneMgr = Ogre::Root::getSingleton().createSceneManager(Ogre::SMT_DEFAULT);
 	
 	// Create the camera
 	mCamera = mSceneMgr->createCamera("PlayerCam");
-	mCamera->setPosition(Ogre::Vector3(0, 0, 0));
     mCamera->setNearClipDistance(0.1f);
     mCamera->setFarClipDistance(10000.0f);
 	

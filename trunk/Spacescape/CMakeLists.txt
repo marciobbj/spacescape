@@ -1,9 +1,3 @@
-# Also includes the include dirs for dependencies QtGui & QtCore
-INCLUDE_DIRECTORIES(${Qt5Widgets_INCLUDES})
-
-# Needed for Qt 5
-ADD_DEFINITIONS(${Qt5Widgets_DEFINITIONS})
-
 ADD_SUBDIRECTORY(external/QtPropertyBrowser5)
 
 INCLUDE_DIRECTORIES(include/)
@@ -119,8 +113,10 @@ ELSEIF(WIN32)
   ADD_EXECUTABLE(Spacescape WIN32 ${SPC_SRCS} ${SPC_MOC_SRCS} ${SPC_MOC_HDRS} ${SPC_RESOURCES_RCC})
 ENDIF()
 
-TARGET_LINK_LIBRARIES(Spacescape SpacescapePlugin "${OGRE_LIBRARIES}" Qt5::Widgets)
-TARGET_LINK_LIBRARIES(Spacescape debug ${QtPropertyBrowser_Library_DBG} optimized ${QtPropertyBrowser_Library_REL})
+TARGET_LINK_LIBRARIES(Spacescape PRIVATE SpacescapePlugin ${OGRE_LIBRARY_REL} Qt5::Widgets QtPropertyBrowser)
+IF(UNIX AND NOT APPLE)
+  TARGET_LINK_LIBRARIES(Spacescape PRIVATE Qt5::X11Extras)
+ENDIF()
 
 IF(WIN32)
    set_target_properties(Spacescape PROPERTIES LINK_FLAGS_DEBUG "/SUBSYSTEM:CONSOLE")
