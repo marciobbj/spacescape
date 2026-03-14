@@ -28,35 +28,17 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 */
 #include "QtSpacescapeExportFileDialog.h"
+#include <QDir>
 #include <QLayout>
 #include <QGridLayout>
 #include <QFileDialog>
 #include <QLabel>
 #include <QCheckBox>
 
-#include "QtOgreWidgetOSX.h"
-
-struct QFileDialogArgs
-{
-    QFileDialogArgs() : parent(0), mode(QFileDialog::AnyFile) {}
-
-    QWidget *parent;
-    QString caption;
-    QString directory;
-    QString selection;
-    QString filter;
-    QFileDialog::FileMode mode;
-    QFileDialog::Options options;
-};
-
 /** constructor
 */
 QtSpacescapeExportFileDialog::QtSpacescapeExportFileDialog(QWidget *parent, Qt::WindowFlags f) :
     QFileDialog(parent, f)
-{
-}
-QtSpacescapeExportFileDialog::QtSpacescapeExportFileDialog(const QFileDialogArgs &args) :
-    QFileDialog(args)
 {
 }
 
@@ -80,33 +62,28 @@ QString QtSpacescapeExportFileDialog::getExportFileName(QWidget *parent,
     // TODO: allow use of dir as path (must validate)
     path = QDir::currentPath();
 
-    QFileDialogArgs args;
-    args.parent = parent;
-    args.caption = caption;
-    args.directory = (dir == 0 || dir.isNull()) ? path : dir;
-    args.selection = "";
-    args.filter = filter;
-    args.mode = AnyFile;
-    args.options = DontUseNativeDialog;
-    
-    // create a qt dialog
-    QtSpacescapeExportFileDialog dialog(args);
+    QtSpacescapeExportFileDialog dialog(parent, Qt::WindowFlags());
+    dialog.setWindowTitle(caption);
+    dialog.setDirectory((dir == 0 || dir.isNull()) ? path : dir);
+    dialog.setNameFilter(filter);
+    dialog.setFileMode(QFileDialog::AnyFile);
+    dialog.setOption(QFileDialog::DontUseNativeDialog, true);
 
     // add our widgets
     QLayout* l = dialog.layout();
 
-    QComboBox*q = new QComboBox(parent);
+    QComboBox*q = new QComboBox(&dialog);
     q->addItem("512");
     q->addItem("1024");
     q->addItem("2048");
     q->addItem("4096");
-    QLabel *sizeLabel = new QLabel("Image Size:", parent);
+    QLabel *sizeLabel = new QLabel("Image Size:", &dialog);
     if(imageSize && !imageSize->isNull()) {
         q->setCurrentText(*imageSize);
     }
     
-    QLabel *orientationLabel = new QLabel("Export For:", parent);
-    QComboBox *orientationCombo = new QComboBox(parent);
+    QLabel *orientationLabel = new QLabel("Export For:", &dialog);
+    QComboBox *orientationCombo = new QComboBox(&dialog);
     orientationCombo->addItem("OGRE 3D");
     orientationCombo->addItem("UNREAL");
     orientationCombo->addItem("UNITY");
@@ -135,20 +112,15 @@ QString QtSpacescapeExportFileDialog::getExportFileName(QWidget *parent,
         if (selectedFilter)
             *selectedFilter = dialog.selectedNameFilter();
 
-        *imageSize = q->currentText();
-        *orientation = orientationCombo->currentText();
+        if (imageSize) {
+            *imageSize = q->currentText();
+        }
+        if (orientation) {
+            *orientation = orientationCombo->currentText();
+        }
 
-        delete q;
-        delete sizeLabel;
-        delete orientationCombo;
-        delete orientationLabel;
         return dialog.selectedFiles().value(0);
     }
-
-    delete q;
-    delete sizeLabel;
-    delete orientationCombo;
-    delete orientationLabel;
     
     return QString();
 }

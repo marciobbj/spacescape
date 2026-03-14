@@ -133,13 +133,19 @@ bool QtSpacescapeWidget::exportSkybox(const QString& filename, unsigned int imag
 {
     Ogre::SpacescapePlugin* plugin = getPlugin();
     if(plugin) {
-        plugin->writeToFile(
-            Ogre::String(filename.toStdString()),
-            imageSize,
-            cubeMap ? Ogre::TEX_TYPE_CUBE_MAP : Ogre::TEX_TYPE_2D,
-			(SpacescapePlugin::SpacescapeRTTOrientation)orientation
-        );
-        return true;
+        try {
+            plugin->writeToFile(
+                Ogre::String(filename.toStdString()),
+                imageSize,
+                cubeMap ? Ogre::TEX_TYPE_CUBE_MAP : Ogre::TEX_TYPE_2D,
+				(SpacescapePlugin::SpacescapeRTTOrientation)orientation
+            );
+            return true;
+        } catch (const Ogre::Exception& e) {
+            qWarning() << "Failed to export skybox:" << e.getFullDescription().c_str();
+        } catch (const std::exception& e) {
+            qWarning() << "Failed to export skybox:" << e.what();
+        }
     }
 
     return false;

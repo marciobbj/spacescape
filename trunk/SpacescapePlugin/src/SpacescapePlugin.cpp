@@ -43,6 +43,10 @@ THE SOFTWARE.
 //#include "half.h"
 #include "OgreLogManager.h"
 #include "OgreCamera.h"
+#include "OGRE/OgreCodec.h"
+#include "OGRE/OgreDataStream.h"
+#include <fstream>
+#include <vector>
 #include "OgreViewport.h"
 #include "OgreTechnique.h"
 
@@ -70,6 +74,42 @@ namespace Ogre
 	}
 
 	const String sPluginName = "Spacescape";
+
+	static bool saveImageWithCodec(Image* img, const String& filename, const String& extension)
+	{
+		Codec* codec = Codec::getCodec(extension);
+		if(!codec) {
+			LogManager::getSingleton().getDefaultLog()->stream() <<
+				"No codec available for extension " << extension;
+			return false;
+		}
+
+		DataStreamPtr encoded = img->encode(extension);
+		if(encoded.isNull()) {
+			LogManager::getSingleton().getDefaultLog()->stream() <<
+				"Failed to encode image for extension " << extension;
+			return false;
+		}
+
+		std::ofstream out(filename.c_str(), std::ios::binary);
+		if(!out) {
+			LogManager::getSingleton().getDefaultLog()->stream() <<
+				"Failed to open output file " << filename;
+			return false;
+		}
+
+		const size_t bufferSize = 64 * 1024;
+		std::vector<char> buffer(bufferSize);
+		while(!encoded->eof()) {
+			size_t bytesRead = encoded->read(buffer.data(), buffer.size());
+			if(bytesRead == 0) {
+				break;
+			}
+			out.write(buffer.data(), static_cast<std::streamsize>(bytesRead));
+		}
+
+		return out.good();
+	}
 
     SpacescapePlugin::SpacescapePlugin() :
         mDebugBox(0),
@@ -1221,7 +1261,7 @@ namespace Ogre
             }
         }
 
-        Ogre::PixelFormat pixelFormat = mHDREnabled ? PF_FLOAT32_RGB : PF_BYTE_RGB;
+        Ogre::PixelFormat pixelFormat = mHDREnabled ? PF_FLOAT32_RGBA : PF_A8B8G8R8;
         if(createTexture) {
             // create the rtt texture
             rtt = TextureManager::getSingleton().createManual(
@@ -1312,7 +1352,11 @@ namespace Ogre
             "Updating RTT";
 
         // first update the rtt texture
-        updateRTT(size, orientation);
+        if(!updateRTT(size, orientation)) {
+            Ogre::LogManager::getSingleton().getDefaultLog()->stream() <<
+                "Export aborted: failed to update RTT";
+            return;
+        }
 
         // update progress
         progressAmount+= 40;
@@ -1324,6 +1368,11 @@ namespace Ogre
 
         // get the render to texture object
         TexturePtr rtt = TextureManager::getSingleton().getByName("SpacescapeRTT");
+        if(rtt.isNull()) {
+            Ogre::LogManager::getSingleton().getDefaultLog()->stream() <<
+                "Export aborted: SpacescapeRTT texture was not created";
+            return;
+        }
 
         if(type == TEX_TYPE_2D) {
             String suffixes[6] = {
@@ -1361,9 +1410,9 @@ namespace Ogre
                 basename = filename.substr(0,filename.length() - 4);
             }
             
-            Ogre::PixelFormat pixelFormat = PF_BYTE_RGB;
+            Ogre::PixelFormat pixelFormat = PF_A8B8G8R8;
             if(mHDREnabled && (ext == ".exr" || ext == ".dds")) {
-                pixelFormat = PF_FLOAT32_RGB;
+                pixelFormat = PF_FLOAT32_RGBA;
             }
             
             // write out six textures
@@ -1392,7 +1441,11 @@ namespace Ogre
                 // tell the image to save out in the requested format
                 // this internal Ogre function will handle format issues
                 // filename is basename with our suffix and the original extension
-                img->save(basename + suffixes[i] + ext);
+                String formatExtension = ext.length() > 1 ? ext.substr(1) : ext;
+                if(!saveImageWithCodec(img, basename + suffixes[i] + ext, formatExtension)) {
+                    Ogre::LogManager::getSingleton().getDefaultLog()->stream() <<
+                        "Failed saving image " << basename  << suffixes[i] << ext;
+                }
 
                 OGRE_FREE(data,MEMCATEGORY_GENERAL);
                 OGRE_DELETE img;
@@ -1405,7 +1458,7 @@ namespace Ogre
             // assume cubic/3d .dds texture
             Image* img = OGRE_NEW Image();
 
-            Ogre::PixelFormat pixelFormat = mHDREnabled ? PF_FLOAT32_RGBA : PF_R8G8B8;
+			Ogre::PixelFormat pixelFormat = mHDREnabled ? PF_FLOAT32_RGBA : PF_A8B8G8R8;
 			size_t numBytes = img->calculateSize(numMips, 6, size, size, 1, pixelFormat);
 
             // allocate room for this image and its mip maps
@@ -1426,7 +1479,11 @@ namespace Ogre
 
             // tell the image to save out in the requested format
             // this internal Ogre function will handle format issues
-            img->save(filename);
+            String formatExtension = filename.substr(filename.find_last_of('.') + 1);
+            if(!saveImageWithCodec(img, filename, formatExtension)) {
+                Ogre::LogManager::getSingleton().getDefaultLog()->stream() <<
+                    "Failed saving image " << filename;
+            }
 
             OGRE_FREE(data,MEMCATEGORY_GENERAL);
             OGRE_DELETE img;

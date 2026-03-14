@@ -791,12 +791,15 @@ void QtSpacescapeMainWindow::onExport()
         }
         
         // ogre can't export dds files doh!
-		ui->ogreWindow->exportSkybox(filename,
+		if(ui->ogreWindow->exportSkybox(filename,
                                      imageSize.toUInt(),
                                      cubeMap,
-                                     skyboxOrientation);
-
-        ui->statusBar->showMessage("Exported skybox " + filename,3000);
+                                     skyboxOrientation)) {
+            ui->statusBar->showMessage("Exported skybox " + filename,3000);
+        }
+        else {
+            ui->statusBar->showMessage("Failed to export skybox", 3000);
+        }
     }
 
     ui->ogreWindow->setDisabled(false);
@@ -1096,8 +1099,8 @@ void QtSpacescapeMainWindow::refreshProperties()
 */
 void QtSpacescapeMainWindow::updateProgressBar(unsigned int percentComplete, const Ogre::String& msg)
 {
+    Q_UNUSED(percentComplete);
     ui->statusBar->showMessage(QString(msg.c_str()));
-    qApp->processEvents();
 }
 
 /** A layer property was changed in the UI. Update the layer and 

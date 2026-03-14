@@ -34,16 +34,12 @@ THE SOFTWARE.
 #include <QComboBox>
 #include <QCheckBox>
 
-struct QFileDialogArgs;
-
 class QtSpacescapeExportFileDialog : public QFileDialog
 {
 public:
     /** constructor
     */
     QtSpacescapeExportFileDialog(QWidget *parent, Qt::WindowFlags f);
-
-    QtSpacescapeExportFileDialog(const QFileDialogArgs &args);
 
     /** destructor
     */
