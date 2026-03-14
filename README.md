@@ -32,3 +32,41 @@ THE SOFTWARE.
 Thanks & attribution to FamFamFam for the icons!
 
 http://www.famfamfam.com/lab/icons/silk/
+
+## Build
+
+Spacescape uses CMake and currently builds on Linux with Qt 5 and OGRE 14.
+
+### Linux (Arch)
+
+Install dependencies:
+
+```bash
+sudo pacman -S cmake gcc make pkgconf qt5-base qt5-x11extras ogre poco
+```
+
+Configure and build from the repository root:
+
+```bash
+cmake -S trunk -B build-linux -DCMAKE_PREFIX_PATH=/usr/lib/OGRE/cmake -DCMAKE_BUILD_TYPE=Release
+cmake --build build-linux -j"$(nproc)"
+```
+
+The generated binaries are written into the source tree, not the build directory:
+
+- `trunk/Spacescape/app/linux/bin/Spacescape.bin`
+- `trunk/Spacescape/app/linux/bin/Plugin_Spacescape.so`
+
+Run with:
+
+```bash
+QT_QPA_PLATFORM=xcb \
+LD_LIBRARY_PATH="$(pwd)/trunk/Spacescape/app/linux/bin:$LD_LIBRARY_PATH" \
+./trunk/Spacescape/app/linux/bin/Spacescape.bin
+```
+
+Notes:
+
+- The current Linux port targets X11/XWayland.
+- OGRE runtime plugins and codecs are loaded from the system install in `/usr/lib/OGRE`.
+- If you are using another distro, install equivalent packages for CMake, Qt 5 Widgets/X11Extras, OGRE, Poco, and a C++ toolchain.
